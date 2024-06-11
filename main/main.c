@@ -350,7 +350,7 @@ void app_main(void)
                     }
                     if(adm3 == 1 && qdig == 4)
                     {
-                        esp_err_t err = nvs_set_i32(my_handle, SENHA_KEY, senha);
+                        esp_err_t err = nvs_set_i32(handle_algo, SENHA_KEY, senha);
                         if (err != ESP_OK) 
                         {
                             lcd595_clear();
