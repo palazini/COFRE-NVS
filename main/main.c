@@ -65,10 +65,11 @@ char tecla;
 char mostra[40];
 uint32_t adcvalor = 0;
 int erros = 0;
-char senha[5];
+int senha;
 int adm2 = 0;
 int adm3 = 0;
 int interrompe = 14;
+nvs_handle_t handle_algo;
 
 // Funções e ramos auxiliares
 //-----------------------------------------------------------------------------------------------------------------------
@@ -92,7 +93,6 @@ void setup()
 
   nvs_handle_t handle_algo;
   err = nvs_open(STORAGE_NAMESPACE, NVS_READWRITE, &handle_algo);
-  
   if (err != ESP_OK) 
   {
     lcd595_clear();
@@ -101,13 +101,10 @@ void setup()
   }
 
   // lê a senha do NVS
-  size_t required_size = sizeof(senha);
-  err = nvs_get_str(handle_algo, SENHA_KEY, senha, &required_size);
-  
+  err = nvs_get_i32(handle_algo, SENHA_KEY, &senha);
   if (err != ESP_OK) 
   {
-    // senha não definida ou alterada
-    strcpy(senha, "1510"); // Define a senha padrão "1510"
+    senha = 1510; // Define a senha padrão como inteiro
   }
 }
 
@@ -353,7 +350,7 @@ void app_main(void)
                     }
                     if(adm3 == 1 && qdig == 4)
                     {
-                        esp_err_t err = nvs_set_str(handle_algo, SENHA_KEY, senha);
+                        esp_err_t err = nvs_set_i32(my_handle, SENHA_KEY, senha);
                         if (err != ESP_OK) 
                         {
                             lcd595_clear();
