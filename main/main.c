@@ -68,6 +68,7 @@ int erros = 0;
 int senha;
 int adm2 = 0;
 int adm3 = 0;
+int adm4 = 0;
 int interrompe = 14;
 nvs_handle_t handle_algo;
 
@@ -115,20 +116,20 @@ void ajuste ()
 
     hcf_adc_ler(&adcvalor);
 
-    if(adcvalor > 500)
+    if(adcvalor > 300)
     {
         hcf_adc_ler(&adcvalor);
-        while(adcvalor > 500)
+        while(adcvalor > 300)
         {
             hcf_adc_ler(&adcvalor);
             rotacionar_DRV(0, 11, saidas);
         }
     }
 
-    if(adcvalor < 400)
+    if(adcvalor < 200)
     {
         hcf_adc_ler(&adcvalor);
-        while(adcvalor < 400)
+        while(adcvalor < 200)
         {
             hcf_adc_ler(&adcvalor);
             rotacionar_DRV(1, 11, saidas);
@@ -310,67 +311,92 @@ void app_main(void)
                     lcd595_clear(); // limpa as informações exibidas no display
                     lcd595_write(1,0, "ACESSO NEGADO"); // exibe no display a mensagem "acesso negado" visto que a senha está errada
                     
-                    vTaskDelay(200 / portTICK_PERIOD_MS); // delay de 2 segundos até voltar para a página inicial 
+                    vTaskDelay(2000 / portTICK_PERIOD_MS); // delay de 2 segundos até voltar para a página inicial 
                     
                     lcd595_clear(); // limpa as informações exibidas no display
                     qdig = 0; // atribui o valor 0 para a variável "qdig" para retornarmos ao painel inicial 
                     n1 = 0; // atribui o valor 0 para a variável "n1" para retornarmos ao painel inicial 
                 }
+            }
+        }
 
-                if(adm2 == 1) // caso a senha esteja correta será executado o código abaixo
+        if(adm2 == 1) // caso a senha esteja correta será executado o código abaixo
+        {
+            lcd595_write(1,0, "PAINEL ADM"); // exibe no display a mensagem "painel adm"
+            lcd595_write(2,0, "PRESSIONE 1"); // exibe no display a mensagem "pressione 1"
+            n1 = 0; // atribui o valor 0 para a variável "n1" pois iremos utilizá-la abaixo
+            qdig = 0; // atribui o valor 0 para a variável "qdig" pois iremos utilizá-la abaixo
+
+            while(tecla != '1' && adm3 != 1)
+            {
+                tecla = le_teclado(); // atribui à variável tecla o valor pressionado no teclado através da função le_teclado
+                if(tecla == '1')
                 {
-                    lcd595_write(1,0, "PAINEL ADM"); // exibe no display a mensagem "painel adm"
-                    lcd595_write(2,0, "PRESSIONE 1"); // exibe no display a mensagem "pressione 1"
-                    n1 = 0; // atribui o valor 0 para a variável "n1" pois iremos utilizá-la abaixo
-                    qdig = 0; // atribui o valor 0 para a variável "qdig" pois iremos utilizá-la abaixo
-
-                    while(tecla != '1' && adm3 != 1)
-                    {
-                        tecla = le_teclado(); // atribui à variável tecla o valor pressionado no teclado através da função le_teclado
-                        if(tecla == '1')
-                        {
-                            adm3 == 1; // atribui o valor 1 para a variável "adm3" para se direcionar à próxima if
-                        }
-                    }
-
-                    if(adm3 == 1 && qdig <4) // caso a tecla 1 seja pressionada será executado o código abaxio
-                    {
-                        tecla = le_teclado(); // atribui à variável tecla o valor pressionado no teclado através da função le_teclado
-                        lcd595_clear(); // limpa as informações exibidas no display
-                        lcd595_write(1,0, "NOVA SENHA"); // exibe no display a mensagem "nova senha" onde então o usuário poderá atribuir uma nova senha ao cofre 
-                        
-                        while(qdig <4 && tecla>='0' && tecla <='9')
-                        {
-                            tecla = le_teclado(); // atribui à variável tecla o valor pressionado no teclado através da função le_teclado
-
-                            n1 = n1 * 10 + tecla - '0'; // faz que n1 se torne o valor anterior de n1 (inicialmente 0) vezes 10 mais a tecla pressionada no teclado
-                            qdig = qdig +1; // aumenta a variável "qdig" para saber a quantidade de digitos já registrados
-                            n1 = senha; // atribui à variável "senha" o valor digitado pelo usuário
-                        }
-                    }
-                    if(adm3 == 1 && qdig == 4)
-                    {
-                        esp_err_t err = nvs_set_i32(handle_algo, SENHA_KEY, senha);
-                        if (err != ESP_OK) 
-                        {
-                            lcd595_clear();
-                            lcd595_write(1,0, "erro ao salvar");
-                            lcd595_write(2,0, "nova senha");
-                        }
-
-                        nvs_commit(handle_algo);
-
-                        vTaskDelay(1000 / portTICK_PERIOD_MS); // delay de 1 segundo para assegurar que todos dados foram atualizados
-                        
-                        qdig = 0; // atribui o valor 0 para a variável para retornarmos ao estado inicial do cofre
-                        n1 = 0; // " "
-                        adm2 = 0; // " "
-                        adm3 = 0; // " "
-                        ctrl = 0; // " "
-
-                    }
+                    adm3 = 1; // atribui o valor 1 para a variável "adm3" para se direcionar à próxima if]
+                    adm2 = 0;
                 }
             }
+        }
+
+        if(adm3 == 1)
+        {
+            adm4 = 1;
+            vTaskDelay(500 / portTICK_PERIOD_MS);
+            adm3 = 0;
+            qdig = 0;
+        }
+        
+        if(adm4 == 1 && qdig <4) // caso a tecla 1 seja pressionada será executado o código abaxio
+        {
+            tecla = le_teclado(); // atribui à variável tecla o valor pressionado no teclado através da função le_teclado
+            lcd595_clear(); // limpa as informações exibidas no display
+            lcd595_write(1,0, "NOVA SENHA"); // exibe no display a mensagem "nova senha" onde então o usuário poderá atribuir uma nova senha ao cofre 
+            
+            senhadisplay();
+
+            while(qdig <4)
+            {   
+                tecla = le_teclado(); // atribui à variável tecla o valor pressionado no teclado através da função le_teclado
+
+                senhadisplay();
+                
+                if(tecla>='0' && tecla <='9')
+                {
+                n1 = n1 * 10 + tecla - '0'; // faz que n1 se torne o valor anterior de n1 (inicialmente 0) vezes 10 mais a tecla pressionada no teclado
+                qdig = qdig +1; // aumenta a variável "qdig" para saber a quantidade de digitos já registrados
+                }
+                vTaskDelay(500 / portTICK_PERIOD_MS);
+            }
+        }
+            
+        if(adm4 == 1 && qdig == 4)
+        {   
+            n1 = senha; // atribui à variável "senha" o valor digitado pelo usuário
+            esp_err_t err = nvs_set_i32(handle_algo, SENHA_KEY, senha);
+            
+            if (err != ESP_OK) 
+            {
+                lcd595_clear();
+                lcd595_write(1,0, "erro ao salvar");
+                lcd595_write(2,0, "nova senha");
+            }
+
+            nvs_commit(handle_algo);
+
+            vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+            lcd595_clear();
+            lcd595_write(1,0, "senha salva");
+
+            vTaskDelay(2500 / portTICK_PERIOD_MS); // delay de 1 segundo para assegurar que todos dados foram atualizados
+                        
+            qdig = 0; // atribui o valor 0 para a variável para retornarmos ao estado inicial do cofre
+            n1 = 0; // " "
+            adm2 = 0; // " "
+            adm3 = 0; // " "
+            adm4 = 0; // " "
+            ctrl = 0; // " "
+
         }
 
         if(ctrl == 0) // enquanto a tecla '+' não for pressionada, a variáve ctrl será 0, então a princípio o código é executado aqui
