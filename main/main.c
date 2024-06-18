@@ -30,6 +30,7 @@
 #include "MP_hcf.h"  
 #include "esp_err.h"
 #include "nvs_flash.h"
+#include "nvs.h"
 #include "string.h"
 
 // Área das macros
@@ -46,8 +47,8 @@
 #define TECLA_8 le_teclado() == '8'
 #define TECLA_0 le_teclado() == '0'
 
-#define STORAGE_NAMESPACE "storage"
-#define SENHA_KEY "senha"
+#define STORAGE_NAMESPACE "storagenvs"
+#define SENHA_KEY "senhanvs"
 
 // Área de declaração de variáveis e protótipos de funções
 //-----------------------------------------------------------------------------------------------------------------------
@@ -65,13 +66,13 @@ char tecla;
 char mostra[40];
 uint32_t adcvalor = 0;
 int erros = 0;
-int senha;
+long senha;
 int adm2 = 0;
 int adm3 = 0;
 int adm4 = 0;
+int apoio = 0;
 int interrompe = 14;
 nvs_handle_t handle_algo;
-
 // Funções e ramos auxiliares
 //-----------------------------------------------------------------------------------------------------------------------
 
@@ -92,19 +93,26 @@ void setup()
 
   // abre o namespace de armazenamento
 
-  nvs_handle_t handle_algo;
+  //nvs_handle_t handle_algo;
+
   err = nvs_open(STORAGE_NAMESPACE, NVS_READWRITE, &handle_algo);
   if (err != ESP_OK) 
   {
     lcd595_clear();
-    lcd595_write(1,0, "erro ao abrir");
-    lcd595_write(2,0, "namespace");
+    lcd595_write(1,1, "Erro ao abrir");
+    lcd595_write(2,3, "Namespace");
+    vTaskDelay(2500 / portTICK_PERIOD_MS); 
   }
 
   // lê a senha do NVS
   err = nvs_get_i32(handle_algo, SENHA_KEY, &senha);
+  
   if (err != ESP_OK) 
   {
+    
+    lcd595_write(1,1, "Nenhuma senha");
+    lcd595_write(2,2, "encontrada");
+    vTaskDelay(2500 / portTICK_PERIOD_MS); 
     senha = 1510; // Define a senha padrão como inteiro
   }
 }
@@ -116,20 +124,20 @@ void ajuste ()
 
     hcf_adc_ler(&adcvalor);
 
-    if(adcvalor > 300)
+    if(adcvalor > 450)
     {
         hcf_adc_ler(&adcvalor);
-        while(adcvalor > 300)
+        while(adcvalor > 450)
         {
             hcf_adc_ler(&adcvalor);
             rotacionar_DRV(0, 11, saidas);
         }
     }
 
-    if(adcvalor < 200)
+    if(adcvalor < 300)
     {
         hcf_adc_ler(&adcvalor);
-        while(adcvalor < 200)
+        while(adcvalor < 300)
         {
             hcf_adc_ler(&adcvalor);
             rotacionar_DRV(1, 11, saidas);
@@ -186,7 +194,7 @@ void abremotor()
         hcf_adc_ler(&adcvalor); // coleta o valor do potenciômetro sempre antes da execução
 
         lcd595_clear(); // limpa o display de antigas mensagens
-        lcd595_write(1,0, "COFRE ABERTO!"); // informa pelo display "cofre aberto" tendo em vista que a senha está correta
+        lcd595_write(1,0, "ABRINDO COFRE!"); // informa pelo display "cofre aberto" tendo em vista que a senha está correta
 
         rotacionar_DRV(1, 11, saidas); // rotaciona o motor no sentido anti-horário de 11 em 11 graus através das saídas dos transistores
                 
@@ -218,11 +226,169 @@ void espera()
     erros = 0; // zera a variável erros para que caso a pessoa erre novamente 3 vezes o mesmo aconteça
 }
 
+void paineladm()
+{
+    if(tecla == '+') // caso a tecla '+' seja pressionada iremos para o menu de administrador, onde será possível alterar a senha do cofre
+    {
+        ctrl = 1; // atribui o valor 1 para a variável ctrl para que a if abaixo se torne verdadeira e então entrar-se no menu de administrador
+        lcd595_clear(); // limpa as informações exibidas no display
+    }
+            
+    if(ctrl == 1)
+    {
+        tecla = le_teclado(); // atribui à variável tecla o valor pressionado no teclado através da função le_teclado
+
+        limpa();
+
+        lcd595_write(1,0, "ADMIN?"); // exibe no display a mensagem "admin?" ao entrar no menu de administrador
+
+        if(tecla>='0' && tecla <='9') // condição para que somente números sejam aceitos na construção da variál n1, que será nossa senha
+        {
+            n1 = n1 * 10 + tecla - '0'; // faz que n1 se torne o valor anterior de n1 (inicialmente 0) vezes 10 mais a tecla pressionada no teclado
+            qdig = qdig + 1; // essa variável irá auxiliar na exibição da senha no display conforme a quantida de teclas pressionadas (qdig = quantidade de digitos)
+        }
+
+        if (ctrl == 1) // verifica se ctrl é 1 antes de executar a função do switch
+        { 
+            senhadisplay();
+        }
+
+        if(qdig == 4) // quando qdig == 4, deste modo todas as casas foram preenchidas é analisado se a senha está correta
+        {
+            if(n1 == 9900) // caso a senha esteja correta será iniciado uma sequência de execuções que leverá ao painel de administrdor
+            {
+                lcd595_clear(); // limpa as informações exibidas no display
+                adm2 = 1; // atribui o valor 1 para a variável auxiliar "adm2" que será útil futuramente
+            } 
+            else // casso a senha esteja errada será executado o código abaixo
+            {
+                lcd595_clear(); // limpa as informações exibidas no display
+                lcd595_write(1,1, "ACESSO NEGADO"); // exibe no display a mensagem "acesso negado" visto que a senha está errada
+                    
+                vTaskDelay(2000 / portTICK_PERIOD_MS); // delay de 2 segundos até voltar para a página inicial 
+                    
+                lcd595_clear(); // limpa as informações exibidas no display
+                qdig = 0; // atribui o valor 0 para a variável "qdig" para retornarmos ao painel inicial 
+                n1 = 0; // atribui o valor 0 para a variável "n1" para retornarmos ao painel inicial 
+                adm2 = 0; // " "
+                adm3 = 0; // " "
+                adm4 = 0; // " "
+                ctrl = 0; // " "
+            }
+        }
+    }
+
+    if(adm2 == 1) // caso a senha esteja correta será executado o código abaixo
+    {
+        lcd595_write(1,2, "PAINEL ADM"); // exibe no display a mensagem "painel adm"
+        lcd595_write(2,2, "PRESSIONE 1"); // exibe no display a mensagem "pressione 1"
+        n1 = 0; // atribui o valor 0 para a variável "n1" pois iremos utilizá-la abaixo
+        qdig = 0; // atribui o valor 0 para a variável "qdig" pois iremos utilizá-la abaixo
+
+        while(tecla != '1' && adm3 != 1)
+        {
+            tecla = le_teclado(); // atribui à variável tecla o valor pressionado no teclado através da função le_teclado
+            if(tecla == '1')
+            {
+                adm3 = 1; // atribui o valor 1 para a variável "adm3" para se direcionar à próxima if]
+                adm2 = 0;
+            }
+        }
+    }
+
+    if(adm3 == 1)
+    {
+        adm4 = 1;
+        vTaskDelay(500 / portTICK_PERIOD_MS);
+        adm3 = 0;
+        qdig = 0;
+    }
+        
+    if(adm4 == 1 && qdig <4) // caso a tecla 1 seja pressionada será executado o código abaxio
+    {
+        tecla = le_teclado(); // atribui à variável tecla o valor pressionado no teclado através da função le_teclado
+        lcd595_clear(); // limpa as informações exibidas no display
+        lcd595_write(1,2, "NOVA SENHA"); // exibe no display a mensagem "nova senha" onde então o usuário poderá atribuir uma nova senha ao cofre 
+            
+        senhadisplay();
+
+        while(qdig <4)
+        {   
+            tecla = le_teclado(); // atribui à variável tecla o valor pressionado no teclado através da função le_teclado
+
+            senhadisplay();
+                
+            if(tecla>='0' && tecla <='9')
+            {
+                n1 = n1 * 10 + tecla - '0'; // faz que n1 se torne o valor anterior de n1 (inicialmente 0) vezes 10 mais a tecla pressionada no teclado
+                qdig = qdig +1; // aumenta a variável "qdig" para saber a quantidade de digitos já registrados
+            }
+            
+            vTaskDelay(150 / portTICK_PERIOD_MS);
+        }
+    }
+            
+    if(adm4 == 1 && qdig == 4)
+    {   
+        senha = n1; // atribui à variável "senha" o valor digitado pelo usuário
+            
+        esp_err_t err = nvs_set_i32(handle_algo, SENHA_KEY, senha);
+            
+        if (err != ESP_OK) 
+        {
+            lcd595_clear();
+            sprintf(&mostra[0], "%s", esp_err_to_name(err));
+            lcd595_write(2, 0, &mostra[0]);
+            vTaskDelay(2500 / portTICK_PERIOD_MS);
+        }
+        else
+        {
+            lcd595_clear();
+            lcd595_write(1,3, "Salvando");
+            lcd595_write(2,2, "nova senha");
+            vTaskDelay(1500 / portTICK_PERIOD_MS);
+        }
+
+        nvs_commit(handle_algo);
+        err = nvs_commit(handle_algo);
+
+        if(err != ESP_OK)
+        {
+            lcd595_clear();
+            sprintf(&mostra[0], "%s", esp_err_to_name(err));
+            lcd595_write(2, 0, &mostra[0]);
+            vTaskDelay(2500 / portTICK_PERIOD_MS);
+        }
+            
+        //remova o comentário das linhas abaixo caso queira exibir a nova senha no display
+        //lcd595_clear();
+        //sprintf(&mostra[0], "%ld", senha); 
+        //lcd595_write(1, 0, &mostra[0]);
+
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+        lcd595_clear();
+        lcd595_write(1,2, "Senha salva");
+
+        vTaskDelay(2000 / portTICK_PERIOD_MS); // delay de 1 segundo para assegurar que todos dados foram atualizados
+                    
+        qdig = 0; // atribui o valor 0 para a variável para retornarmos ao estado inicial do cofre
+        n1 = 0; // " "
+        adm2 = 0; // " "
+        adm3 = 0; // " "
+        adm4 = 0; // " "
+        ctrl = 0; // " "
+        tecla = '_';
+    }
+}
+
+
 // Programa Principal
 //-----------------------------------------------------------------------------------------------------------------------
 
 void app_main(void)
-{
+{   
+    setup();
     MP_init(); // configura pinos do motor
     // a seguir, apenas informações de console, aquelas notas verdes no início da execução
     ESP_LOGI(TAG, "Iniciando...");
@@ -236,8 +402,8 @@ void app_main(void)
 
     // inicializar o display LCD 
     lcd595_init();
-    lcd595_write(1,1,"    Jornada 1   ");
-    lcd595_write(2,1," Programa Basico");
+    lcd595_write(1,3,"Jornada 1");
+    lcd595_write(2,0,"Programa Basico");
     
     // Inicializar o componente de leitura de entrada analógica
     esp_err_t init_result = hcf_adc_iniciar();
@@ -255,12 +421,13 @@ void app_main(void)
     /////////////////////////////////////////////////////////////////////////////////////   Periféricos inicializados
     
     lcd595_clear();
-    lcd595_write(1,0, "© Gab Palazini"); // apresentação 
-    lcd595_write(2,2, "CODIGO COFRE"); // " "
+    lcd595_write(1,1, "Gab Palazini"); // apresentação 
+    lcd595_write(2,1, "CODIGO COFRE"); // " "
 
     vTaskDelay(1500 / portTICK_PERIOD_MS);
 
     lcd595_clear();
+    
     ajuste();
 
     setup();
@@ -274,131 +441,8 @@ void app_main(void)
 
         limpa();
        
-        if(tecla == '+') // caso a tecla '+' seja pressionada iremos para o menu de administrador, onde será possível alterar a senha do cofre
-        {
-            ctrl = 1; // atribui o valor 1 para a variável ctrl para que a if abaixo se torne verdadeira e então entrar-se no menu de administrador
-            lcd595_clear(); // limpa as informações exibidas no display
-        }
-            
-        if(ctrl == 1)
-        {
-            tecla = le_teclado(); // atribui à variável tecla o valor pressionado no teclado através da função le_teclado
-
-            limpa();
-
-            lcd595_write(1,0, "ADMIN?"); // exibe no display a mensagem "admin?" ao entrar no menu de administrador
-
-            if(tecla>='0' && tecla <='9') // condição para que somente números sejam aceitos na construção da variál n1, que será nossa senha
-            {
-                n1 = n1 * 10 + tecla - '0'; // faz que n1 se torne o valor anterior de n1 (inicialmente 0) vezes 10 mais a tecla pressionada no teclado
-                qdig = qdig + 1; // essa variável irá auxiliar na exibição da senha no display conforme a quantida de teclas pressionadas (qdig = quantidade de digitos)
-            }
-
-            if (ctrl == 1) // verifica se ctrl é 1 antes de executar a função do switch
-            { 
-                senhadisplay();
-            }
-
-            if(qdig == 4) // quando qdig == 4, deste modo todas as casas foram preenchidas é analisado se a senha está correta
-            {
-                if(n1 == 9900) // caso a senha esteja correta será iniciado uma sequência de execuções que leverá ao painel de administrdor
-                {
-                    lcd595_clear(); // limpa as informações exibidas no display
-                    adm2 = 1; // atribui o valor 1 para a variável auxiliar "adm2" que será útil futuramente
-                } 
-                else // casso a senha esteja errada será executado o código abaixo
-                {
-                    lcd595_clear(); // limpa as informações exibidas no display
-                    lcd595_write(1,0, "ACESSO NEGADO"); // exibe no display a mensagem "acesso negado" visto que a senha está errada
-                    
-                    vTaskDelay(2000 / portTICK_PERIOD_MS); // delay de 2 segundos até voltar para a página inicial 
-                    
-                    lcd595_clear(); // limpa as informações exibidas no display
-                    qdig = 0; // atribui o valor 0 para a variável "qdig" para retornarmos ao painel inicial 
-                    n1 = 0; // atribui o valor 0 para a variável "n1" para retornarmos ao painel inicial 
-                }
-            }
-        }
-
-        if(adm2 == 1) // caso a senha esteja correta será executado o código abaixo
-        {
-            lcd595_write(1,0, "PAINEL ADM"); // exibe no display a mensagem "painel adm"
-            lcd595_write(2,0, "PRESSIONE 1"); // exibe no display a mensagem "pressione 1"
-            n1 = 0; // atribui o valor 0 para a variável "n1" pois iremos utilizá-la abaixo
-            qdig = 0; // atribui o valor 0 para a variável "qdig" pois iremos utilizá-la abaixo
-
-            while(tecla != '1' && adm3 != 1)
-            {
-                tecla = le_teclado(); // atribui à variável tecla o valor pressionado no teclado através da função le_teclado
-                if(tecla == '1')
-                {
-                    adm3 = 1; // atribui o valor 1 para a variável "adm3" para se direcionar à próxima if]
-                    adm2 = 0;
-                }
-            }
-        }
-
-        if(adm3 == 1)
-        {
-            adm4 = 1;
-            vTaskDelay(500 / portTICK_PERIOD_MS);
-            adm3 = 0;
-            qdig = 0;
-        }
-        
-        if(adm4 == 1 && qdig <4) // caso a tecla 1 seja pressionada será executado o código abaxio
-        {
-            tecla = le_teclado(); // atribui à variável tecla o valor pressionado no teclado através da função le_teclado
-            lcd595_clear(); // limpa as informações exibidas no display
-            lcd595_write(1,0, "NOVA SENHA"); // exibe no display a mensagem "nova senha" onde então o usuário poderá atribuir uma nova senha ao cofre 
-            
-            senhadisplay();
-
-            while(qdig <4)
-            {   
-                tecla = le_teclado(); // atribui à variável tecla o valor pressionado no teclado através da função le_teclado
-
-                senhadisplay();
-                
-                if(tecla>='0' && tecla <='9')
-                {
-                n1 = n1 * 10 + tecla - '0'; // faz que n1 se torne o valor anterior de n1 (inicialmente 0) vezes 10 mais a tecla pressionada no teclado
-                qdig = qdig +1; // aumenta a variável "qdig" para saber a quantidade de digitos já registrados
-                }
-                vTaskDelay(500 / portTICK_PERIOD_MS);
-            }
-        }
-            
-        if(adm4 == 1 && qdig == 4)
-        {   
-            n1 = senha; // atribui à variável "senha" o valor digitado pelo usuário
-            esp_err_t err = nvs_set_i32(handle_algo, SENHA_KEY, senha);
-            
-            if (err != ESP_OK) 
-            {
-                lcd595_clear();
-                lcd595_write(1,0, "erro ao salvar");
-                lcd595_write(2,0, "nova senha");
-            }
-
-            nvs_commit(handle_algo);
-
-            vTaskDelay(1000 / portTICK_PERIOD_MS);
-
-            lcd595_clear();
-            lcd595_write(1,0, "senha salva");
-
-            vTaskDelay(2500 / portTICK_PERIOD_MS); // delay de 1 segundo para assegurar que todos dados foram atualizados
-                        
-            qdig = 0; // atribui o valor 0 para a variável para retornarmos ao estado inicial do cofre
-            n1 = 0; // " "
-            adm2 = 0; // " "
-            adm3 = 0; // " "
-            adm4 = 0; // " "
-            ctrl = 0; // " "
-
-        }
-
+        paineladm();
+      
         if(ctrl == 0) // enquanto a tecla '+' não for pressionada, a variáve ctrl será 0, então a princípio o código é executado aqui
         {
             lcd595_write(1,0, "Digite a senha!"); // escreve no display a frase "digite a senha"
@@ -429,7 +473,7 @@ void app_main(void)
                 if(adcvalor == 2400 || interrompe == 0) // quando o valor do potênciometro for máximo ou interrompe chegar a 0, se inicia o processo de fechamento
                 {   
                     lcd595_clear();
-                    lcd595_write(1,2, "COFRE ABERTO");
+                    lcd595_write(1,2, "COFRE ABERTO"); // exibe no display o estado atual do cofre
 
                     for (int i = 15; i >= 0; i--) // esse ramo fará uma contagem regressiva de 15 segundos, tempo que o cofre ficará aberto
                     {
@@ -452,7 +496,7 @@ void app_main(void)
             else // caso a pessoa erre a senha da if(n1 == senha) será executado o comando else
             {
                 lcd595_clear(); // limpa o display de antigas mensagens
-                lcd595_write(1,0, "SENHA ERRADA!"); // informa no display que a senha digitada está errada
+                lcd595_write(1,1, "SENHA ERRADA!"); // informa no display que a senha digitada está errada
               
                 qdig = 0; // após isso a variável qdig volta ser 0 para que se possa iniciar novamente o processo
                 n1 = 0; // após isso a variável n1 volta ser 0 para que se possa iniciar novamente o processo
