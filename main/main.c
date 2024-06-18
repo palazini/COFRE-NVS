@@ -49,6 +49,8 @@
 
 #define STORAGE_NAMESPACE "storagenvs"
 #define SENHA_KEY "senhanvs"
+#define ADCMAX_KEY "adcmaxnvs"
+#define ADCMIN_KEY "adcminnvs"
 
 // Área de declaração de variáveis e protótipos de funções
 //-----------------------------------------------------------------------------------------------------------------------
@@ -56,94 +58,115 @@
 static const char *TAG = "Placa";
 static uint8_t entradas, saidas = 0; //variáveis de controle de entradas e saídas
 
+uint32_t adcvalor = 0;
+
 int ctrl = 0;
 int n1 = 0;
 int qdig = 0;
 int coluna = 0;
 int resul = 0;
-char operador;
-char tecla;
-char mostra[40];
-uint32_t adcvalor = 0;
 int erros = 0;
-long senha;
 int adm2 = 0;
 int adm3 = 0;
 int adm4 = 0;
+int admadc = 0;
 int apoio = 0;
 int interrompe = 14;
+
+char operador;
+char tecla;
+char mostra[40];
+
+long senha;
+long adcmax;
+long adcmin;
+
 nvs_handle_t handle_algo;
 // Funções e ramos auxiliares
 //-----------------------------------------------------------------------------------------------------------------------
 
 //OBS: CASO SEJA VISTO UMA DAS FUNÇÕES ABAIXO NO DECORRER DO CÓDIGO BASTAR APERTAR CTRL + BOTÃO DIREITO SOBRE A FUNÇÃO E VOCÊ SERÁ DIRECIONADO PARA CÁ
 
+void zeratudo()
+{
+    qdig = 0; // atribui o valor 0 para a variável "qdig" para retornarmos ao painel inicial 
+    n1 = 0; // atribui o valor 0 para a variável "n1" para retornarmos ao painel inicial 
+    adm2 = 0; // " "
+    adm3 = 0; // " "
+    adm4 = 0; // " "
+    admadc = 0; // " "
+    ctrl = 0; // " "
+}
+
 void setup() 
 {
-  // inicializa o NVS
-
-  esp_err_t err = nvs_flash_init();
-  if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) 
-  {
+    // inicializa o NVS
+    esp_err_t err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) 
+    {
     ESP_ERROR_CHECK(nvs_flash_erase());
     err = nvs_flash_init();
-  }
-  
-  ESP_ERROR_CHECK(err);
+    }
 
-  // abre o namespace de armazenamento
+    ESP_ERROR_CHECK(err);
 
-  //nvs_handle_t handle_algo;
+    // abre o namespace de armazenamento
 
-  err = nvs_open(STORAGE_NAMESPACE, NVS_READWRITE, &handle_algo);
-  if (err != ESP_OK) 
-  {
+    //nvs_handle_t handle_algo;
+
+    err = nvs_open(STORAGE_NAMESPACE, NVS_READWRITE, &handle_algo);
+    if (err != ESP_OK) 
+    {
     lcd595_clear();
     lcd595_write(1,1, "Erro ao abrir");
     lcd595_write(2,3, "Namespace");
     vTaskDelay(2500 / portTICK_PERIOD_MS); 
-  }
+    }
 
-  // lê a senha do NVS
-  err = nvs_get_i32(handle_algo, SENHA_KEY, &senha);
-  
-  if (err != ESP_OK) 
-  {
-    
-    lcd595_write(1,1, "Nenhuma senha");
-    lcd595_write(2,2, "encontrada");
-    vTaskDelay(2500 / portTICK_PERIOD_MS); 
-    senha = 1510; // Define a senha padrão como inteiro
-  }
+    // lê a senha do NVS
+    err = nvs_get_i32(handle_algo, SENHA_KEY, &senha);
+    if (err != ESP_OK) 
+    {
+        lcd595_write(1,1, "Nenhuma senha");
+        lcd595_write(2,2, "encontrada");
+        vTaskDelay(2500 / portTICK_PERIOD_MS); 
+        senha = 1510; // Define a senha padrão como inteiro
+    }
+
+    err = nvs_get_i32(handle_algo, ADCMAX_KEY, &adcmax);
+    if (err != ESP_OK)
+    {
+        lcd595_write(1,1, "VALOR ADC MAX");
+        lcd595_write(2,2, "NAO DEFINIDO");
+        adcmax = 2400;
+        vTaskDelay(1500 / portTICK_PERIOD_MS);
+    }
+
+    err = nvs_get_i32(handle_algo, ADCMIN_KEY, &adcmin);
+    if (err != ESP_OK)
+    {
+        lcd595_write(1,1, "VALOR ADC MIN");
+        lcd595_write(2,2, "NAO DEFINIDO");
+        adcmin = 450; 
+        vTaskDelay(1500 / portTICK_PERIOD_MS);
+    }
+
 }
 
 void ajuste ()
 {
     // caso o cofre esta com a tampa aberta ou fechada demais antes inicar a execução do código principal será ajustado a posição ideal
-    // são utilizados valor com uma leve distância para evitar que o movimento de um acione o outro implicando em um looping 
-
     hcf_adc_ler(&adcvalor);
 
-    if(adcvalor > 450)
+    if(adcvalor > adcmin)
     {
         hcf_adc_ler(&adcvalor);
         while(adcvalor > 450)
         {
             hcf_adc_ler(&adcvalor);
-            rotacionar_DRV(0, 11, saidas);
+            rotacionar_DRV(0, 6, saidas);
         }
     }
-
-    if(adcvalor < 300)
-    {
-        hcf_adc_ler(&adcvalor);
-        while(adcvalor < 300)
-        {
-            hcf_adc_ler(&adcvalor);
-            rotacionar_DRV(1, 11, saidas);
-        }
-    }
-
 }
 
 void limpa ()
@@ -189,31 +212,27 @@ void senhadisplay ()
 
 void abremotor()
 {
-    while(adcvalor <= 2400 && interrompe > 0) // enquanto valor do potenciômetor for menor que 2400 ou interrompe maior que 0, irá girar o motor de 11 em 11 graus
+    while(adcvalor <= adcmax) // enquanto valor do potenciômetor for menor que 2400 ou interrompe maior que 0, irá girar o motor de 11 em 11 graus
     {
         hcf_adc_ler(&adcvalor); // coleta o valor do potenciômetro sempre antes da execução
 
         lcd595_clear(); // limpa o display de antigas mensagens
         lcd595_write(1,0, "ABRINDO COFRE!"); // informa pelo display "cofre aberto" tendo em vista que a senha está correta
 
-        rotacionar_DRV(1, 11, saidas); // rotaciona o motor no sentido anti-horário de 11 em 11 graus através das saídas dos transistores
-                
-        interrompe--; // decresce de 1 em 1 o valor da variável interrompe para que o motor pare ao chegar a 0 caso o potenciômetro não chegue ao seu limite
+        rotacionar_DRV(1, 5, saidas); // rotaciona o motor no sentido anti-horário de 11 em 11 graus através das saídas dos transistores
     }
 }
 
 void fechamotor()
 {
-    while(adcvalor >= 450 && interrompe < 14) // enquanto o valor do potenciômetro for maior que 450 ou interrompe menor que 11, irá girar o motor de 11 em 11 graus
+    while(adcvalor >= adcmin) // enquanto o valor do potenciômetro for maior que 450 ou interrompe menor que 11, irá girar o motor de 11 em 11 graus
     {  
         hcf_adc_ler(&adcvalor); // coleta o valor do potenciômetro novamente para saber até quando se deve fechar
 
         lcd595_clear(); // limpa o display de antigas mensagens
         lcd595_write(1,0, "COFRE FECHANDO!"); // informa no display que o cofre está iniciando seu fechamento
 
-        rotacionar_DRV(0, 11, saidas); // rotaciona o motor no sentido horário de 11 em 11 graus através das saídas dos transistores
-
-        interrompe++; // aumenta de 1 em 1 o valor da variável interrompe para que o motor pare ao chegar a 11 caso o potenciômetro não chegue ao seu limite
+        rotacionar_DRV(0, 5, saidas); // rotaciona o motor no sentido horário de 11 em 11 graus através das saídas dos transistores
     }
 }
 
@@ -281,17 +300,21 @@ void paineladm()
     if(adm2 == 1) // caso a senha esteja correta será executado o código abaixo
     {
         lcd595_write(1,2, "PAINEL ADM"); // exibe no display a mensagem "painel adm"
-        lcd595_write(2,2, "PRESSIONE 1"); // exibe no display a mensagem "pressione 1"
+        lcd595_write(2,0, "SENHA: 1 ADC: 2"); // exibe no display a mensagem de escolha entre a mudança de senha e regulação do ADC.
         n1 = 0; // atribui o valor 0 para a variável "n1" pois iremos utilizá-la abaixo
         qdig = 0; // atribui o valor 0 para a variável "qdig" pois iremos utilizá-la abaixo
 
-        while(tecla != '1' && adm3 != 1)
+        while(tecla != '1' && adm3 != 1 && admadc != 1)
         {
             tecla = le_teclado(); // atribui à variável tecla o valor pressionado no teclado através da função le_teclado
             if(tecla == '1')
             {
                 adm3 = 1; // atribui o valor 1 para a variável "adm3" para se direcionar à próxima if]
                 adm2 = 0;
+            }
+            if(tecla == '2')
+            {
+                admadc = 1;
             }
         }
     }
@@ -382,6 +405,123 @@ void paineladm()
     }
 }
 
+void paineladc()
+{
+    if(admadc == 1)
+    { 
+        tecla = '_';
+        apoio = 1;
+        
+        while(apoio == 1)
+        {
+            tecla = le_teclado();
+            hcf_adc_ler(&adcvalor);
+            lcd595_write(1, 0, "Press. 1 adcmax");
+            lcd595_write(2,0, "Press. 2 adcmin");
+            
+            if(tecla == '1')
+            {
+                adcmax = adcvalor;
+                
+                esp_err_t err = nvs_set_i32(handle_algo, ADCMAX_KEY, adcmax);
+            
+                if (err != ESP_OK) 
+                {
+                    lcd595_clear();
+                    sprintf(&mostra[0], "%s", esp_err_to_name(err));
+                    lcd595_write(2, 0, &mostra[0]);
+                    vTaskDelay(2500 / portTICK_PERIOD_MS);
+                }
+                else
+                {
+                    lcd595_clear();
+                    lcd595_write(1,2, "Salvando valor");
+                    lcd595_write(2,2, "maximo de adc");
+                    vTaskDelay(1500 / portTICK_PERIOD_MS);
+                }
+                
+                nvs_commit(handle_algo);
+                
+                err = nvs_commit(handle_algo);
+
+                if(err != ESP_OK)
+                {
+                    lcd595_clear();
+                    sprintf(&mostra[0], "%s", esp_err_to_name(err));
+                    lcd595_write(2, 0, &mostra[0]);
+                    vTaskDelay(2500 / portTICK_PERIOD_MS);
+                }
+
+                lcd595_clear();
+                lcd595_write(1,2, "Valor salvo");
+                vTaskDelay(1000 / portTICK_PERIOD_MS);
+            }
+
+            if(tecla == '2')
+            {
+                adcmin = adcvalor;
+                
+                esp_err_t err = nvs_set_i32(handle_algo, ADCMIN_KEY, adcmin);
+            
+                if (err != ESP_OK) 
+                {
+                    lcd595_clear();
+                    sprintf(&mostra[0], "%s", esp_err_to_name(err));
+                    lcd595_write(2, 0, &mostra[0]);
+                    vTaskDelay(2500 / portTICK_PERIOD_MS);
+                }
+                else
+                {
+                    lcd595_clear();
+                    lcd595_write(1,2, "Salvando valor");
+                    lcd595_write(2,2, "minimo de adc");
+                    vTaskDelay(1500 / portTICK_PERIOD_MS);
+                }
+                
+                nvs_commit(handle_algo);
+                
+                err = nvs_commit(handle_algo);
+
+                if(err != ESP_OK)
+                {
+                    lcd595_clear();
+                    sprintf(&mostra[0], "%s", esp_err_to_name(err));
+                    lcd595_write(2, 0, &mostra[0]);
+                    vTaskDelay(2500 / portTICK_PERIOD_MS);
+                }
+
+                lcd595_clear();
+                lcd595_write(1,2, "Valor salvo");
+                sprintf(&mostra[0], "%ld", adcmin);
+                lcd595_write(2, 0, &mostra[0]);
+                vTaskDelay(1000 / portTICK_PERIOD_MS);
+            }
+
+            if(tecla == '5')
+            {
+                rotacionar_DRV(1, 5, saidas);
+            }
+            
+            if(tecla == '6')
+            {
+                rotacionar_DRV(0, 5, saidas);
+            }
+            
+            if(tecla == 'C')
+            {
+                qdig = 0; // atribui o valor 0 para a variável "qdig" para retornarmos ao painel inicial 
+                n1 = 0; // atribui o valor 0 para a variável "n1" para retornarmos ao painel inicial 
+                adm2 = 0; // " "
+                adm3 = 0; // " "
+                adm4 = 0; // " "
+                ctrl = 0; // " "
+                admadc = 0; // " "
+                apoio = 0; // " "
+                ajuste();
+            }
+        }
+    }
+}
 
 // Programa Principal
 //-----------------------------------------------------------------------------------------------------------------------
@@ -442,6 +582,7 @@ void app_main(void)
         limpa();
        
         paineladm();
+        paineladc();
       
         if(ctrl == 0) // enquanto a tecla '+' não for pressionada, a variáve ctrl será 0, então a princípio o código é executado aqui
         {
@@ -465,12 +606,12 @@ void app_main(void)
         if(qdig == 4 && ctrl == 0) // quando qdig == 4, deste modo todas as casas foram preenchidas é analisado se a senha está correta
         {
             if(n1 == senha) // caso a senha não tenha sido trocada no painel ADM, no topo do código, ela terá seu valor padrão "1510"
-            {
+            {   
                 hcf_adc_ler(&adcvalor); // coleta o valor do potenciômetro 
-            
+
                 abremotor();
                 
-                if(adcvalor == 2400 || interrompe == 0) // quando o valor do potênciometro for máximo ou interrompe chegar a 0, se inicia o processo de fechamento
+                if(adcvalor > adcmax || interrompe == 0) // quando o valor do potênciometro for máximo ou interrompe chegar a 0, se inicia o processo de fechamento
                 {   
                     lcd595_clear();
                     lcd595_write(1,2, "COFRE ABERTO"); // exibe no display o estado atual do cofre
