@@ -1,7 +1,16 @@
-# OBS
+# CÓDIGO COFRE NVS
 
-Caso aconteça algum problema no vscode ao reconhecer partes do código como pode acontecer com a constante "NVS_READWRITE" baixe as duas pastas abaixo e adicione a pasta do seu código
+O código conta com um pianel de adm onde pode ser alterada a senha e valores máximos e mínimos da abertura do cofre.
+Caso tenha alguma dúvida do funcionamento de funções segue abaixo:
 
-link: https://drive.google.com/file/d/1G53ckJ6k3_-LTnt62Q1Vcb4HsuOR1EVp/view?usp=sharing (apenas a pasta devcontainer)
+Como abrir o painel adm?
+Basta apertar a tecla '+' que esta localizada na quarta tecla da esquerda para direito na linha mais abaixo.
 
-caso queira conferir se não há vírus: https://www.virustotal.com/gui/home/upload
+Senha painel adm: 9900
+
+Senha padrão do cofre: 1510
+
+Caso deseja alterar o valor máximo e mínino do cofre basta entrar no painel de adm e entrar na opção ADC.
+Para fazer uma pequena abertura no cofre para os ajustes basta apertar a tecla '5', para fechar da mesma forma aperta a tecla '6'.
+Quando fizer as alterações desejadas pressione '1' para o valor máximo de abertura e '2' para valor mínimo.
+
