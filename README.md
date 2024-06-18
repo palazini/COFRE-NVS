@@ -4,7 +4,7 @@ O código conta com um pianel de adm onde pode ser alterada a senha e valores m�
 Caso tenha alguma dúvida do funcionamento de funções segue abaixo:
 
 Como abrir o painel adm?
-Basta apertar a tecla '+' que esta localizada na quarta tecla da esquerda para direito na linha mais abaixo.
+Basta apertar a tecla '+' que esta localizada na quarta tecla da esquerda para direita na linha mais abaixo.
 
 Senha painel adm: 9900
 
